@@ -294,6 +294,8 @@ class ChatChannel(Channel):
             if not e_context.is_pass() and reply and reply.type:
                 logger.debug("[chat_channel] ready to send reply: {}, context: {}".format(reply, context))
                 self._send(reply, context)
+    def send_reply(self, context: Context, reply: Reply):
+        self._send_reply(context, reply)
 
     def _send(self, reply: Reply, context: Context, retry_cnt=0):
         try:

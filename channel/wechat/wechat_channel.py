@@ -15,6 +15,7 @@ from bridge.context import *
 from bridge.reply import *
 from channel.chat_channel import ChatChannel
 from channel import chat_channel
+from channel.wechat.autosend_scheduler import AutoSendScheduler
 from channel.wechat.wechat_message import *
 from common.expired_dict import ExpiredDict
 from common.log import logger
@@ -132,6 +133,7 @@ class WechatChannel(ChatChannel):
         super().__init__()
         self.receivedMsgs = ExpiredDict(conf().get("expires_in_seconds", 3600))
         self.auto_login_times = 0
+        # self.autoSendScheduler = AutoSendScheduler(self)
 
     def startup(self):
         try:
@@ -151,6 +153,7 @@ class WechatChannel(ChatChannel):
             self.name = itchat.instance.storageClass.nickName
             logger.info("Wechat login success, user_id: {}, nickname: {}".format(self.user_id, self.name))
             # start message listener
+            # self.autoSendScheduler.start()
             itchat.run()
         except Exception as e:
             logger.exception(e)
@@ -238,6 +241,7 @@ class WechatChannel(ChatChannel):
     # 统一的发送函数，每个Channel自行实现，根据reply的type字段发送不同类型的消息
     def send(self, reply: Reply, context: Context):
         receiver = context.get("receiver")
+        # receiver = "@d0145812bca5a6ff9398e6c889e0f0fcfa0437e19e208d5a9106d8a82c6477b3"
         if reply.type == ReplyType.TEXT:
             itchat.send(reply.content, toUserName=receiver)
             logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
@@ -343,6 +347,16 @@ class WechatChannel(ChatChannel):
                 # 记录添加成员失败的错误信息
                 logger.error("[WX] Failed to invite members to chatroom. Error: {}".format(e))
 
+    def send_text_to_user(self, replay: Reply, receiver: str):
+        # receiver = "@d0145812bca5a6ff9398e6c889e0f0fcfa0437e19e208d5a9106d8a82c6477b3"
+        itchat.send(replay.content, toUserName=receiver)
+        logger.info("[WX] send_task={}, receiver={}".format(replay.content, receiver))
+
+    def get_friends(self):
+        return itchat.get_friends()
+
+    def search_friends_by_nickname(self, nickName: str):
+        return itchat.search_friends(nickName=nickName)
 
 def _send_login_success():
     try:

@@ -3,6 +3,11 @@ import os
 import random
 import tempfile
 import threading
+
+from channel.wework.autosend_scheduler import AutoSendScheduler
+from channel.wework.autosync_wework_scheduler import AutoSyncWeworkScheduler
+from channel.wework.wework_sync import sync_external_contacts, sync_rooms, sync_room_members
+
 os.environ['ntwork_LOG'] = "ERROR"
 import ntwork
 import requests
@@ -33,7 +38,7 @@ def get_wxid_by_name(room_members, group_wxid, name):
 
 def download_and_compress_image(url, filename, quality=30):
     # 确定保存图片的目录
-    directory = os.path.join(os.getcwd(), "tmp")
+    directory = os.path.join(os.getcwd(), "asset_data", "wework")
     # 如果目录不存在，则创建目录
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -64,7 +69,7 @@ def download_and_compress_image(url, filename, quality=30):
 
 def download_video(url, filename):
     # 确定保存视频的目录
-    directory = os.path.join(os.getcwd(), "tmp")
+    directory = os.path.join(os.getcwd(), "asset_data", "wework")
     # 如果目录不存在，则创建目录
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -122,7 +127,7 @@ def _check(func):
 @wework.msg_register(
     [ntwork.MT_RECV_TEXT_MSG, ntwork.MT_RECV_IMAGE_MSG, 11072, ntwork.MT_RECV_LINK_CARD_MSG,ntwork.MT_RECV_FILE_MSG, ntwork.MT_RECV_VOICE_MSG])
 def all_msg_handler(wework_instance: ntwork.WeWork, message):
-    logger.debug(f"收到消息: {message}")
+    logger.info(f"收到消息: {message}")
     if 'data' in message:
         # 首先查找conversation_id，如果没有找到，则查找room_conversation_id
         conversation_id = message['data'].get('conversation_id', message['data'].get('room_conversation_id'))
@@ -171,13 +176,14 @@ def get_with_retry(get_func, max_retries=5, delay=5):
         time.sleep(delay)  # 等待一段时间后重试
     return result
 
-
 @singleton
 class WeworkChannel(ChatChannel):
     NOT_SUPPORT_REPLYTYPE = []
 
     def __init__(self):
         super().__init__()
+        self.autoSendScheduler = AutoSendScheduler(self)
+        self.autoSyncWeworkScheduler = AutoSyncWeworkScheduler(self)
 
     def startup(self):
         smart = conf().get("wework_smart", True)
@@ -185,43 +191,19 @@ class WeworkChannel(ChatChannel):
         logger.info("等待登录······")
         wework.wait_login()
         login_info = wework.get_login_info()
+        logger.info("登录用户:>>>{}".format(login_info))
         self.user_id = login_info['user_id']
         self.name = login_info['nickname']
         logger.info(f"登录信息:>>>user_id:{self.user_id}>>>>>>>>name:{self.name}")
         logger.info("静默延迟60s，等待客户端刷新数据，请勿进行任何操作······")
         time.sleep(60)
-        contacts = get_with_retry(wework.get_external_contacts)
-        rooms = get_with_retry(wework.get_rooms)
-        directory = os.path.join(os.getcwd(), "tmp")
-        if not contacts or not rooms:
-            logger.error("获取contacts或rooms失败，程序退出")
-            ntwork.exit_()
-            os.exit(0)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        # 将contacts保存到json文件中
-        with open(os.path.join(directory, 'wework_contacts.json'), 'w', encoding='utf-8') as f:
-            json.dump(contacts, f, ensure_ascii=False, indent=4)
-        with open(os.path.join(directory, 'wework_rooms.json'), 'w', encoding='utf-8') as f:
-            json.dump(rooms, f, ensure_ascii=False, indent=4)
-        # 创建一个空字典来保存结果
-        result = {}
-
-        # 遍历列表中的每个字典
-        for room in rooms['room_list']:
-            # 获取聊天室ID
-            room_wxid = room['conversation_id']
-
-            # 获取聊天室成员
-            room_members = wework.get_room_members(room_wxid)
-
-            # 将聊天室成员保存到结果字典中
-            result[room_wxid] = room_members
-
-        # 将结果保存到json文件中
-        with open(os.path.join(directory, 'wework_room_members.json'), 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=4)
-        logger.info("wework程序初始化完成········")
+        logger.info("获取相关数据...")
+        sync_external_contacts()
+        rooms = sync_rooms()
+        sync_room_members(rooms)
+        # self.autoSendScheduler.start()
+        # 开始数据定时同步任务
+        self.autoSyncWeworkScheduler.start()
         run.forever()
 
     @time_checker
@@ -321,6 +303,7 @@ class WeworkChannel(ChatChannel):
         elif reply.type == ReplyType.VOICE:
             current_dir = os.getcwd()
             voice_file = reply.content.split("/")[-1]
-            reply.content = os.path.join(current_dir, "tmp", voice_file)
+            reply.content = os.path.join(current_dir, "asset_data", "wework", voice_file)
             wework.send_file(receiver, reply.content)
             logger.info("[WX] sendFile={}, receiver={}".format(reply.content, receiver))
+

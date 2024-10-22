@@ -13,5 +13,7 @@ def forever():
     except KeyboardInterrupt:
         ntwork.exit_()
         os._exit(0)
+    finally:
+        ntwork.exit_()
 
 

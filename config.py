@@ -160,6 +160,13 @@ available_setting = {
     "wechatcomapp_secret": "",  # 企业微信app的secret
     "wechatcomapp_agent_id": "",  # 企业微信app的agent_id
     "wechatcomapp_aes_key": "",  # 企业微信app的aes_key
+    # wechatcomappthird的配置
+    "wechatcomappthird_token": "",  # 企业微信app的token
+    "wechatcomappthird_port": 9898,  # 企业微信app的服务端口,不需要端口转发
+    "wechatcomappthird_corp_id": "",  # 企业微信公司的corpID
+    "wechatcomappthird_agent_id": "",  # 企业微信app的agent_id
+    "wechatcomappthird_aes_key": "",  # 企业微信app的aes_key
+    "wechatcomappthird_secret": "",
     # 飞书配置
     "feishu_port": 80,  # 飞书bot监听端口
     "feishu_app_id": "",  # 飞书机器人应用APP Id
