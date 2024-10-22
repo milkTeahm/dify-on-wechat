@@ -127,8 +127,12 @@ def _check(func):
 @wework.msg_register(
     [ntwork.MT_RECV_TEXT_MSG, ntwork.MT_RECV_IMAGE_MSG, 11072, ntwork.MT_RECV_LINK_CARD_MSG,ntwork.MT_RECV_FILE_MSG, ntwork.MT_RECV_VOICE_MSG])
 def all_msg_handler(wework_instance: ntwork.WeWork, message):
-    logger.info(f"收到消息: {message}")
-    if 'data' in message:
+    logger.debug(f"收到消息: {message}")
+    if WeworkChannel().inited and 'data' in message:
+        sender = message['data'].get("sender", None)
+        if sender and sender == WeworkChannel().user_id:
+            logger.debug("自己发的，直接结束")
+            return
         # 首先查找conversation_id，如果没有找到，则查找room_conversation_id
         conversation_id = message['data'].get('conversation_id', message['data'].get('room_conversation_id'))
         if conversation_id is not None:
@@ -176,6 +180,7 @@ def get_with_retry(get_func, max_retries=5, delay=5):
         time.sleep(delay)  # 等待一段时间后重试
     return result
 
+
 @singleton
 class WeworkChannel(ChatChannel):
     NOT_SUPPORT_REPLYTYPE = []
@@ -184,6 +189,7 @@ class WeworkChannel(ChatChannel):
         super().__init__()
         self.autoSendScheduler = AutoSendScheduler(self)
         self.autoSyncWeworkScheduler = AutoSyncWeworkScheduler(self)
+        self.inited = False
 
     def startup(self):
         smart = conf().get("wework_smart", True)
@@ -191,9 +197,8 @@ class WeworkChannel(ChatChannel):
         logger.info("等待登录······")
         wework.wait_login()
         login_info = wework.get_login_info()
-        logger.info("登录用户:>>>{}".format(login_info))
         self.user_id = login_info['user_id']
-        self.name = login_info['nickname']
+        self.name = login_info['nickname'] if login_info['nickname'] else login_info['username']
         logger.info(f"登录信息:>>>user_id:{self.user_id}>>>>>>>>name:{self.name}")
         logger.info("静默延迟60s，等待客户端刷新数据，请勿进行任何操作······")
         time.sleep(60)
@@ -306,4 +311,3 @@ class WeworkChannel(ChatChannel):
             reply.content = os.path.join(current_dir, "asset_data", "wework", voice_file)
             wework.send_file(receiver, reply.content)
             logger.info("[WX] sendFile={}, receiver={}".format(reply.content, receiver))
-
