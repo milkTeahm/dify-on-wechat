@@ -209,6 +209,8 @@ class WeworkChannel(ChatChannel):
         # self.autoSendScheduler.start()
         # 开始数据定时同步任务
         self.autoSyncWeworkScheduler.start()
+        logger.info("wework程序初始化完成········")
+        self.inited = True
         run.forever()
 
     @time_checker
